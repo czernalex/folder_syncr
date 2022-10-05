@@ -106,6 +106,7 @@ def sync_folders(
     f_removed = 0
     d_created = 0
     d_removed = 0
+    filename = ""
     if not src_folder.is_dir():
         log_str = ">>> [{}WARNING{}]: Source {} folder does not exist.\n"
         log_file.write(log_str.format(
@@ -197,6 +198,8 @@ def sync_folders(
                             dst_path
                         ), end="")
     for dst_file in dst_folder_state:
+        if filename is None:
+            filename = dst_file
         if not dst_folder_state.get(dst_file, {}).get("checked", True):
             if dst_folder_state.get(dst_file, {}).get("type", "") == "file":
                 pathlib.Path(str(dst_folder) + dst_file).unlink(missing_ok=True)
