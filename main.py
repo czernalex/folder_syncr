@@ -61,12 +61,12 @@ if __name__ == "__main__":
                 args.src_folder,
                 args.dst_folder,
                 log_file,
-                get_dst_folder_state(args.dst_folder),
+                get_dst_folder_state(args.dst_folder, log_file, args.silent),
                 args.silent
             )
             sync_end = datetime.datetime.now()
             log_str = ">>> [{}SUCCESS{}]: Synchronization from {} folder to {} completed. Took {} ms.\n"
-            log_str += ">>> [{}STATS{}]:\n"
+            log_str += ">>> [{}SYNC STATS{}]:\n"
             log_str += "    - Files updated: {}.\n"
             log_str += "    - Files created: {}.\n"
             log_str += "    - Files deleted: {}.\n"

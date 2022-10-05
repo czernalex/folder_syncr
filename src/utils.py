@@ -31,12 +31,14 @@ def get_file_hash(path: pathlib.Path) -> str:
     return hash_function.hexdigest()
 
 
-def get_dst_folder_state(path: str) -> dict:
+def get_dst_folder_state(path: str, log_file: typing.TextIO, silent: bool = False) -> dict:
     """
         This function is called before every synchronization. It iterates over files in replica folder
         and creates simple dictionary with file informations necessary for successfull synchronization.
             Parameters:
                 path (str): Path to the replica folder.
+                log_file (typing.TextIO): File to log operations in.
+                silent (bool): Whether to provide verbose output.
             Returns:
                 state (dict): Object containing necessary information abou replica folder files.
     """
@@ -44,6 +46,18 @@ def get_dst_folder_state(path: str) -> dict:
     state = dict()
     if not dst_folder.is_dir():
         dst_folder.mkdir(parents=True, exist_ok=True)
+        log_str = ">>> [{}INFO{}]: Created replica {} folder.\n"
+        log_file.write(log_str.format(
+            "",
+            "",
+            path
+        ))
+        if not silent:
+            print(log_str.format(
+                colors.get("BLUE", ""),
+                colors.get("NC", ""),
+                path
+            ), end="")
         return state
     for file in dst_folder.rglob("*"):
         filename = str(file)[len(str(dst_folder)):]
