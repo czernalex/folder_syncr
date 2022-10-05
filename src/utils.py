@@ -14,6 +14,13 @@ colors = {
 
 
 def get_file_hash(path: pathlib.Path) -> str:
+    """
+        Returns the string digest of provided file. It contains hexadecimal characters only.
+            Parameters:
+                path (pathlib.Path): Input file.
+            Returns:
+                hash_function.hexdigest() (str): Hexadecimal string containing file digest.
+    """
     hash_function = hashlib.sha1()
     with open(path, "rb") as file:
         chunk = 0
@@ -24,6 +31,14 @@ def get_file_hash(path: pathlib.Path) -> str:
 
 
 def get_dst_folder_state(path: str) -> dict:
+    """
+        This function is called before every synchronization. It iterates over files in replica folder
+        and creates simple dictionary with file informations necessary for successfull synchronization.
+            Parameters:
+                path (str): Path to the replica folder.
+            Returns:
+                state (dict): Object containing necessary information abou replica folder files.
+    """
     dst_folder = pathlib.Path(path)
     state = dict()
     if not dst_folder.is_dir():
@@ -52,6 +67,23 @@ def sync_folders(
         dst_folder_state: dict,
         silent: bool = False
     ) -> None:
+    """
+        Core function that handles synchronization between source and replica folders.
+        It iterates over all files in source folder and looks into state structure.
+        If the file doesn't exist in replica folder, function creates the file in replica
+        folder with the same content. If the file exists in replica folder, but its content was
+        modified (digest is different), function updates the file in replica folder. Finally,
+        if file no longer exists in source folder but still exists in replica folder, function
+        removes it from replica folder.
+            Parameters:
+                src_path (str): Path to the source folder.
+                dst_path (str): Path to the replica folder.
+                log_file (typing.TextIO): File to log operations in.
+                dst_folder_state (dict): State of the replica folder.
+                silent (bool): Whether to provide verbose output.
+            Returns:
+                (tuple): Stats numbers.
+    """
     src_folder = pathlib.Path(src_path)
     dst_folder = pathlib.Path(dst_path)
     f_updated = 0
@@ -60,7 +92,7 @@ def sync_folders(
     d_created = 0
     d_removed = 0
     if not src_folder.is_dir():
-        log_str = ">>> {}WARNING{}: Source {} folder does not exist.\n"
+        log_str = ">>> [{}WARNING{}]: Source {} folder does not exist.\n"
         log_file.write(log_str.format(
             "",
             "",
@@ -72,7 +104,7 @@ def sync_folders(
             src_path
         ), end="")
     elif not any(src_folder.iterdir()):
-        log_str = ">>> {}INFO{}: Source {} folder is empty.\n"
+        log_str = ">>> [{}INFO{}]: Source {} folder is empty.\n"
         log_file.write(log_str.format(
             "",
             "",
@@ -95,7 +127,7 @@ def sync_folders(
                             follow_symlinks=True
                         )
                         f_updated += 1
-                        log_str = ">>> {}INFO{}: Updated file {} in replica {} folder.\n"
+                        log_str = ">>> [{}INFO{}]: Updated file {} in replica {} folder.\n"
                         log_file.write(log_str.format(
                             "",
                             "",
@@ -118,7 +150,7 @@ def sync_folders(
                         follow_symlinks=True
                     )
                     f_created += 1
-                    log_str = ">>> {}INFO{}: Created new file {} in replica {} folder.\n"
+                    log_str = ">>> [{}INFO{}]: Created new file {} in replica {} folder.\n"
                     log_file.write(log_str.format(
                         "",
                         "",
@@ -135,7 +167,7 @@ def sync_folders(
                 elif src_file.is_dir():
                     pathlib.Path(str(dst_folder) + filename).mkdir(parents=True, exist_ok=True)
                     d_created += 1
-                    log_str = ">>> {}INFO{}: Created new subdirectory {} in replica {} folder.\n"
+                    log_str = ">>> [{}INFO{}]: Created new subdirectory {} in replica {} folder.\n"
                     log_file.write(log_str.format(
                         "",
                         "",
@@ -154,7 +186,7 @@ def sync_folders(
             if dst_folder_state.get(dst_file, {}).get("type", "") == "file":
                 pathlib.Path(str(dst_folder) + dst_file).unlink(missing_ok=True)
                 f_removed += 1
-                log_str = ">>> {}INFO{}: Removed file {} from replica {} folder.\n"
+                log_str = ">>> [{}INFO{}]: Removed file {} from replica {} folder.\n"
                 log_file.write(log_str.format(
                     "",
                     "",
@@ -171,7 +203,7 @@ def sync_folders(
             elif dst_folder_state[dst_file]["type"] == "dir":
                 shutil.rmtree(str(dst_folder) + dst_file, ignore_errors=True)
                 d_removed += 1
-                log_str = ">>> {}INFO{}: Removed subdirectory {} from replica {} folder.\n"
+                log_str = ">>> [{}INFO{}]: Removed subdirectory {} from replica {} folder.\n"
                 log_file.write(log_str.format(
                     "",
                     "",
