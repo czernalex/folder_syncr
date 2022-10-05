@@ -16,6 +16,7 @@ colors = {
 def get_file_hash(path: pathlib.Path) -> str:
     """
         Returns the string digest of provided file. It contains hexadecimal characters only.
+        Input file is read by chunks in case it would not fit in memory because of its size.
             Parameters:
                 path (pathlib.Path): Input file.
             Returns:
