@@ -19,7 +19,7 @@ from src.config import (
 def get_parsed_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Simple CLI tool to periodically synchronize src folder into dst folder",
-        epilog="<> by Alexandr Czerny, https://czernalex.github.io"
+        epilog="<> by Alexandr Czerny, check source code https://github.com/czernalex/folder_syncr"
     )
     parser.add_argument(
         "-s",
