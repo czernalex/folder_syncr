@@ -1,12 +1,18 @@
 import argparse
-import pathlib
+import os
 import time
 import datetime
 
+from dotenv import load_dotenv
+
 from src.utils import (
-    colors,
+    log,
     sync_folders,
     get_dst_folder_state
+)
+from src.config import (
+    SOURCE_REPLICA_FOLDERS_ERR,
+    SYNC_COMPLETED
 )
 
 
@@ -43,18 +49,20 @@ def get_parsed_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     args = get_parsed_args()
     with open(args.log_file, mode="w", encoding="utf-8") as log_file:
         if args.src_folder == args.dst_folder:
-            log_str = ">>> [{}ERROR{}]: Source folder and replica folder must be different.{}"
-            log_file.write(log_str.format(
-                "","","\n"
-            ))
-            exit(log_str.format(
-                colors.get("RED", ""),
-                colors.get("NC", ""),
-                ""
-            ))
+            log(
+                SOURCE_REPLICA_FOLDERS_ERR,
+                log_file,
+                {
+                    "C": os.getenv("RED", "").encode("utf-8").decode("unicode-escape"),
+                    "NC": os.getenv("NC", "").encode("utf-8").decode("unicode-escape"),
+                },
+                args.silent
+            )
+            exit()
         while True:
             sync_start = datetime.datetime.now()
             f_u, f_c, f_r, d_c, d_r = sync_folders(
@@ -65,47 +73,24 @@ if __name__ == "__main__":
                 args.silent
             )
             sync_end = datetime.datetime.now()
-            log_str = ">>> [{}SUCCESS{}]: Synchronization from {} folder to {} completed. Took {} ms.\n"
-            log_str += ">>> [{}SYNC STATS{}]:\n"
-            log_str += "    - Files updated: {}.\n"
-            log_str += "    - Files created: {}.\n"
-            log_str += "    - Files deleted: {}.\n"
-            log_str += "    - Directories created: {}.\n"
-            log_str += "    - Directories deleted: {}.\n"
-            log_str += ">>> [{}INFO{}]: Next synchronization in aprox. {} seconds.\n\n\n"
-            log_file.write(log_str.format(
-                "",
-                "",
-                args.src_folder,
-                args.dst_folder,
-                int((sync_end - sync_start).total_seconds() * 1000),
-                "",
-                "",
-                f_u,
-                f_c,
-                f_r,
-                d_c,
-                d_r,
-                "",
-                "",
-                args.sync_interval
-            ))
-            if not args.silent:
-                print(log_str.format(
-                    colors.get("GREEN", ""),
-                    colors.get("NC", ""),
-                    args.src_folder,
-                    args.dst_folder,
-                    int((sync_end - sync_start).total_seconds() * 1000),
-                    colors.get("BLUE", ""),
-                    colors.get("NC", ""),
-                    f_u,
-                    f_c,
-                    f_r,
-                    d_c,
-                    d_r,
-                    colors.get("BLUE", ""),
-                    colors.get("NC", ""),
-                    args.sync_interval
-                ), end="")
+            log(
+                SYNC_COMPLETED,
+                log_file,
+                {
+                    "C1": os.getenv("GREEN", "").encode("utf-8").decode("unicode-escape"),
+                    "NC1": os.getenv("NC", "").encode("utf-8").decode("unicode-escape"),
+                    "C2": os.getenv("BLUE", "").encode("utf-8").decode("unicode-escape"),
+                    "NC2": os.getenv("NC", "").encode("utf-8").decode("unicode-escape"),
+                    "src": args.src_folder,
+                    "dst": args.dst_folder,
+                    "f_u": f_u,
+                    "f_c": f_c,
+                    "f_r": f_r,
+                    "d_c": d_c,
+                    "d_r": d_r,
+                    "delta": int((sync_end - sync_start).total_seconds() * 1000),
+                    "interval": args.sync_interval
+                },
+                args.silent
+            )
             time.sleep(args.sync_interval)

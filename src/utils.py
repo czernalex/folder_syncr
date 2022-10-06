@@ -1,16 +1,20 @@
+import os
 import pathlib
 import hashlib
 import shutil
 import typing
 
-
-colors = {
-    "RED": "\033[0;31m",
-    "GREEN": "\033[0;32m",
-    "YELLOW": "\033[0;33m",
-    "BLUE": "\033[0;34m",
-    "NC": "\033[0m"
-}
+from .config import (
+    SOURCE_FOLDER_NOT_EXISTS,
+    SOURCE_FOLDER_EMPTY,
+    SOURCE_FOLDER_CREATED,
+    REPLICA_FOLDER_CREATED,
+    FILE_CREATED,
+    FILE_UPDATED,
+    FILE_REMOVED,
+    SUBDIR_CREATED,
+    SUBDIR_REMOVED
+)
 
 
 def get_file_hash(path: pathlib.Path) -> str:
@@ -31,6 +35,24 @@ def get_file_hash(path: pathlib.Path) -> str:
     return hash_function.hexdigest()
 
 
+def log(log_str: str, log_file: typing.TextIO, formatters: dict, silent: bool = False) -> None:
+    """
+        This function handles logging completed operations in provided Log file and to standard output.
+        Parameters:
+            log_str (str): Completed operation to log.
+            log_file (typing.TextIO): Log file.
+            formatters (dict): Parameters to insert in prepared log_str.
+            silent (bool): Whether to provide verbose log in standard output.
+    """
+    log_file.write(log_str.format(
+        **formatters
+    ))
+    if not silent:
+        print(log_str.format(
+            **formatters
+        ), end="")
+
+
 def get_dst_folder_state(path: str, log_file: typing.TextIO, silent: bool = False) -> dict:
     """
         This function is called before every synchronization. It iterates over files in replica folder
@@ -46,18 +68,16 @@ def get_dst_folder_state(path: str, log_file: typing.TextIO, silent: bool = Fals
     state = dict()
     if not dst_folder.is_dir():
         dst_folder.mkdir(parents=True, exist_ok=True)
-        log_str = ">>> [{}INFO{}]: Created replica {} folder.\n"
-        log_file.write(log_str.format(
-            "",
-            "",
-            path
-        ))
-        if not silent:
-            print(log_str.format(
-                colors.get("BLUE", ""),
-                colors.get("NC", ""),
-                path
-            ), end="")
+        log(
+            REPLICA_FOLDER_CREATED,
+            log_file,
+            {
+                "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+                "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+                "dir": path
+            },
+            silent
+        )
         return state
     for file in dst_folder.rglob("*"):
         filename = str(file)[len(str(dst_folder)):]
@@ -75,6 +95,104 @@ def get_dst_folder_state(path: str, log_file: typing.TextIO, silent: bool = Fals
     return state
 
 
+def create_update_file(
+    src_file: str,
+    dst_file: str,
+    log_file: typing.TextIO,
+    silent: bool = False,
+    create: bool = True
+    ) -> None:
+    """
+        Creates or updates file in replica folder.
+        Parameters:
+                dst_file (str): Path to the file to create or update.
+                log_file (typing.TextIO): Log file.
+                silent (bool): Whether to provide verbose output.
+    """
+    shutil.copy2(
+        src_file,
+        dst_file,
+        follow_symlinks=True
+    )
+    log(
+        FILE_CREATED if create else FILE_UPDATED,
+        log_file,
+        {
+            "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+            "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+            "file": dst_file.split("/")[-1],
+            "dir": "/".join(dst_file.split("/")[:-1])
+        },
+        silent
+    )
+
+
+def create_dir(dst_path: str, log_file: typing.TextIO, silent: bool = False) -> None:
+    """
+        Creates sub directory in replica folder.
+        Parameters:
+                dst_path (str): Path to the dir to create.
+                log_file (typing.TextIO): Log file.
+                silent (bool): Whether to provide verbose output.
+    """
+    pathlib.Path(dst_path).mkdir(parents=True, exist_ok=True)
+    log(
+        SUBDIR_CREATED,
+        log_file,
+        {
+            "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+            "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+            "file": dst_path.split("/")[-1],
+            "dir": "/".join(dst_path.split("/")[:-1])
+        },
+        silent
+    )
+
+
+def remove_file(dst_file: str, log_file: typing.TextIO, silent: bool = False) -> None:
+    """
+        Removes file from replica folder, if it no longer exists in source folder.
+            Parameters:
+                dst_file (str): Path to the file to remove.
+                log_file (typing.TextIO): Log file.
+                silent (bool): Whether to provide verbose output.
+    """
+    pathlib.Path(dst_file).unlink(missing_ok=True)
+    log(
+        FILE_REMOVED,
+        log_file,
+        {
+            "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+            "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+            "file": dst_file.split("/")[-1],
+            "dir": "/".join(dst_file.split("/")[:-1])
+        },
+        silent
+    )
+
+
+def remove_dir(dst_path: str, log_file: typing.TextIO, silent: bool = False) -> None:
+    """
+        Removes sub directory from replica folder, if it no longer exists in source folder.
+            Parameters:
+                dst_path (str): Path to the dir to remove.
+                log_file (typing.TextIO): Log file.
+                silent (bool): Whether to provide verbose output.
+    """
+    shutil.rmtree(dst_path, ignore_errors=True)
+    log(
+        SUBDIR_REMOVED,
+        log_file,
+        {
+            "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+            "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+            "file": dst_path.split("/")[-1],
+            "dir": "/".join(dst_path.split("/")[:-1])
+        },
+        silent
+    )
+
+
 def sync_folders(
         src_path: str,
         dst_path: str,
@@ -84,12 +202,6 @@ def sync_folders(
     ) -> None:
     """
         Core function that handles synchronization between source and replica folders.
-        It iterates over all files in source folder and looks into state structure.
-        If the file doesn't exist in replica folder, function creates the file in replica
-        folder with the same content. If the file exists in replica folder, but its content was
-        modified (digest is different), function updates the file in replica folder. Finally,
-        if file no longer exists in source folder but still exists in replica folder, function
-        removes it from replica folder.
             Parameters:
                 src_path (str): Path to the source folder.
                 dst_path (str): Path to the replica folder.
@@ -108,131 +220,93 @@ def sync_folders(
     d_removed = 0
     filename = ""
     if not src_folder.is_dir():
-        log_str = ">>> [{}WARNING{}]: Source {} folder does not exist.\n"
-        log_file.write(log_str.format(
-            "",
-            "",
-            src_path
-        ))
-        print(log_str.format(
-            colors.get("YELLOW", ""),
-            colors.get("NC", ""),
-            src_path
-        ), end="")
+        log (
+            SOURCE_FOLDER_NOT_EXISTS,
+            log_file,
+            {
+                "C": os.getenv("YELLOW", "").encode("utf-8").decode("unicode_escape"),
+                "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+                "dir": src_path
+            },
+            silent
+        )
+        src_folder.mkdir(parents=True, exist_ok=True)
+        log (
+            SOURCE_FOLDER_CREATED,
+            log_file,
+            {
+                "C": os.getenv("BLUE", "").encode("utf-8").decode("unicode_escape"),
+                "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+                "dir": src_path
+            },
+            silent
+        )
     elif not any(src_folder.iterdir()):
-        log_str = ">>> [{}INFO{}]: Source {} folder is empty.\n"
-        log_file.write(log_str.format(
-            "",
-            "",
-            src_path
-        ))
-        print(log_str.format(
-            colors.get("BLUE", ""),
-            colors.get("NC", ""),
-            src_path
-        ), end="")
+        log(
+            SOURCE_FOLDER_EMPTY,
+            log_file,
+            {
+                "C": os.getenv("YELLOW", "").encode("utf-8").decode("unicode_escape"),
+                "NC": os.getenv("NC", "").encode("utf-8").decode("unicode_escape"),
+                "dir": src_path
+            },
+            silent
+        )
     else:
         for src_file in src_folder.rglob("*"):
             filename = str(src_file)[len(str(src_folder)):]
             if filename in dst_folder_state:
                 if src_file.is_file():
                     if get_file_hash(src_file) != dst_folder_state.get(filename, {}).get("hash", ""):
-                        shutil.copy2(
+                        create_update_file(
                             str(src_file),
                             str(dst_folder) + filename,
-                            follow_symlinks=True
+                            log_file,
+                            silent,
+                            False
                         )
                         f_updated += 1
-                        log_str = ">>> [{}INFO{}]: Updated file {} in replica {} folder.\n"
-                        log_file.write(log_str.format(
-                            "",
-                            "",
-                            filename[1:],
-                            dst_path
-                        ))
-                        if not silent:
-                            print(log_str.format(
-                                colors.get("BLUE", ""),
-                                colors.get("NC", ""),
-                                filename[1:],
-                                dst_path
-                            ), end="")
                 dst_folder_state[filename]["checked"] = True
             else:
                 if src_file.is_file():
-                    shutil.copy2(
+                    parent_dir = pathlib.Path("/".join((str(dst_folder) + filename).split("/")[:-1]))
+                    if not parent_dir.is_dir():
+                        create_dir(
+                            str(parent_dir),
+                            log_file,
+                            silent
+                        )
+                    create_update_file(
                         str(src_file),
                         str(dst_folder) + filename,
-                        follow_symlinks=True
+                        log_file,
+                        silent
                     )
                     f_created += 1
-                    log_str = ">>> [{}INFO{}]: Created new file {} in replica {} folder.\n"
-                    log_file.write(log_str.format(
-                        "",
-                        "",
-                        filename[1:],
-                        dst_path
-                    ))
-                    if not silent:
-                        print(log_str.format(
-                            colors.get("BLUE", ""),
-                            colors.get("NC", ""),
-                            filename[1:],
-                            dst_path
-                        ), end="")
                 elif src_file.is_dir():
-                    pathlib.Path(str(dst_folder) + filename).mkdir(parents=True, exist_ok=True)
+                    create_dir(
+                        str(dst_folder) + filename,
+                        log_file,
+                        silent
+                    )
                     d_created += 1
-                    log_str = ">>> [{}INFO{}]: Created new subdirectory {} in replica {} folder.\n"
-                    log_file.write(log_str.format(
-                        "",
-                        "",
-                        filename[1:],
-                        dst_path
-                    ))
-                    if not silent:
-                        print(log_str.format(
-                            colors.get("BLUE", ""),
-                            colors.get("NC", ""),
-                            filename[1:],
-                            dst_path
-                        ), end="")
     for dst_file in dst_folder_state:
-        if filename is None:
-            filename = dst_file
         if not dst_folder_state.get(dst_file, {}).get("checked", True):
+            if filename is None:
+                filename = dst_file
             if dst_folder_state.get(dst_file, {}).get("type", "") == "file":
-                pathlib.Path(str(dst_folder) + dst_file).unlink(missing_ok=True)
+                remove_file(
+                    str(dst_folder) + dst_file,
+                    log_file,
+                    silent
+                )
                 f_removed += 1
-                log_str = ">>> [{}INFO{}]: Removed file {} from replica {} folder.\n"
-                log_file.write(log_str.format(
-                    "",
-                    "",
-                    filename[1:],
-                    dst_path
-                ))
-                if not silent:
-                    print(log_str.format(
-                        colors.get("BLUE", ""),
-                        colors.get("NC", ""),
-                        filename[1:],
-                        dst_path
-                    ), end="")
             elif dst_folder_state[dst_file]["type"] == "dir":
                 shutil.rmtree(str(dst_folder) + dst_file, ignore_errors=True)
+                remove_dir(
+                    str(dst_folder) + dst_file,
+                    log_file,
+                    silent
+                )
                 d_removed += 1
-                log_str = ">>> [{}INFO{}]: Removed subdirectory {} from replica {} folder.\n"
-                log_file.write(log_str.format(
-                    "",
-                    "",
-                    filename[1:],
-                    dst_path
-                ))
-                if not silent:
-                    print(log_str.format(
-                        colors.get("BLUE", ""),
-                        colors.get("NC", ""),
-                        filename[1:],
-                        dst_path
-                    ), end="")
     return f_updated, f_created, f_removed, d_created, d_removed
