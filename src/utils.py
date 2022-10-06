@@ -3,6 +3,7 @@ import pathlib
 import hashlib
 import shutil
 import typing
+import copy
 
 from .config import (
     SOURCE_FOLDER_NOT_EXISTS,
@@ -44,8 +45,21 @@ def log(log_str: str, log_file: typing.TextIO, formatters: dict, silent: bool = 
             formatters (dict): Parameters to insert in prepared log_str.
             silent (bool): Whether to provide verbose log in standard output.
     """
+    log_file_formatters = copy.deepcopy(formatters)
+    if "C" in log_file_formatters:
+        log_file_formatters["C"] = ""
+    if "C1" in log_file_formatters:
+        log_file_formatters["C1"] = ""
+    if "C2" in log_file_formatters:
+        log_file_formatters["C2"] = ""
+    if "NC" in log_file_formatters:
+        log_file_formatters["NC"] = ""
+    if "NC1" in log_file_formatters:
+        log_file_formatters["NC1"] = ""
+    if "NC2" in log_file_formatters:
+        log_file_formatters["NC2"] = ""
     log_file.write(log_str.format(
-        **formatters
+        **log_file_formatters
     ))
     if not silent:
         print(log_str.format(
